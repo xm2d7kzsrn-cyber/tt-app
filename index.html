@@ -3,92 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>卓球アナリティクス V12 完全版</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>卓球アナリティクス V11.1 修正版</title>
+<script src="chart.umd.js"></script>
 
 <style>
-:root { --p1-color:#3498db; --p2-color:#e67e22; --accent:#2ecc71; }
-
 body{
 font-family:sans-serif;
-margin:0;
 background:#f0f2f5;
-font-size:14px;
+margin:0;
+padding:5px;
 }
 
 .container{
-max-width:1300px;
+max-width:1200px;
 margin:auto;
 background:white;
-padding:15px;
+padding:10px;
 border-radius:12px;
-position:relative;
-min-height:90vh;
 }
 
-/* overlay */
-.overlay{
-position:absolute;
-top:0;left:0;
-width:100%;height:100%;
-background:white;
-z-index:1000;
-display:flex;
-flex-direction:column;
-align-items:center;
-padding:20px;
-overflow-y:auto;
-}
-
-/* レイアウト */
 .main-layout{
 display:flex;
-gap:15px;
 flex-wrap:wrap;
+gap:10px;
 }
 
-.game-controls{flex:2;min-width:350px;}
-.stats-sidebar{flex:1;min-width:300px;background:#f8f9fa;padding:10px;border-radius:8px}
+.player-area{
+flex:1;
+padding:10px;
+border:3px solid #ddd;
+border-radius:10px;
+}
 
-/* スコア */
 .score{
-font-size:70px;
-font-weight:bold;
+font-size:60px;
+text-align:center;
 }
 
-/* ボタン */
-button{
-padding:8px;
-font-size:12px;
-border:none;
-border-radius:4px;
-cursor:pointer;
+.btn-group{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:5px;
 }
 
-.btn-reason{background:#ecf0f1;}
-.btn-p1-main{background:var(--p1-color);color:white;}
-.btn-p2-main{background:var(--p2-color);color:white;}
-.hidden{display:none!important;}
-
-/* グラフ */
-.chart-stack{
+/* グラフ縦配置 */
+.charts{
+margin-top:15px;
 display:flex;
 flex-direction:column;
 gap:15px;
-margin-top:15px;
 }
 
-canvas{
-width:100%!important;
-height:180px!important;
+.chart-row{
+display:flex;
+gap:10px;
 }
 
-textarea{
-width:100%;
-height:70px;
-margin-top:10px;
+.chart-box{
+flex:1;
+background:#fff;
+border:1px solid #ddd;
+padding:10px;
 }
+
 </style>
 </head>
 
@@ -96,140 +73,164 @@ margin-top:10px;
 
 <div class="container">
 
-<!-- モード -->
-<div id="mode-select-overlay" class="overlay">
-<h1>🏓 卓球アナリティクス</h1>
-<button onclick="showSetup()">新規試合</button>
-<button onclick="showHistory()">履歴</button>
-</div>
-
-<!-- セットアップ -->
-<div id="setup-overlay" class="overlay" style="display:none;">
-<input id="match-name" placeholder="試合名">
-<input id="p1-input-name" value="自分">
-<input id="p2-input-name" value="相手">
-<button onclick="startMatch('p1')">自分サーブ</button>
-<button onclick="startMatch('p2')">相手サーブ</button>
-</div>
-
-<!-- 履歴 -->
-<div id="history-overlay" class="overlay" style="display:none;">
-<div id="history-list"></div>
-<button onclick="location.reload()">戻る</button>
-</div>
-
-<!-- ゲーム -->
-<div id="game-main" style="display:none;">
-
-<div style="text-align:center;">
-<div id="p1-score" class="score">0</div> : <div id="p2-score" class="score">0</div>
-</div>
-
-<div>
-<button class="btn-reason" onclick="recordPoint('p1','攻撃')">攻撃</button>
-<button class="btn-reason" onclick="recordPoint('p1','ミス')">ミス</button>
-<button class="btn-reason" onclick="recordPoint('p2','攻撃')">攻撃</button>
-<button class="btn-reason" onclick="recordPoint('p2','ミス')">ミス</button>
-
-<textarea id="freeMemo" placeholder="自由記述"></textarea>
-</div>
-
 <div class="main-layout">
 
-<div class="game-controls">
+<!-- P1 -->
+<div class="player-area">
+<h3>自分</h3>
+<div id="p1-score" class="score">0</div>
 
-<div class="chart-stack">
-<canvas id="serveChart"></canvas>
-<canvas id="reasonChart"></canvas>
+<div class="btn-group">
+<button onclick="record('p1','攻撃')">攻撃</button>
+<button onclick="record('p1','守備')">守備</button>
+<button onclick="record('p1','ミス')">ミス</button>
+<button onclick="record('p1','サーブ')">サーブ</button>
+<button onclick="record('p1','得点')">得点</button>
 </div>
 
 </div>
 
-<div class="stats-sidebar">
-<table id="stats-table"></table>
+<!-- P2 -->
+<div class="player-area">
+<h3>相手</h3>
+<div id="p2-score" class="score">0</div>
+
+<div class="btn-group">
+<button onclick="record('p2','攻撃')">攻撃</button>
+<button onclick="record('p2','守備')">守備</button>
+<button onclick="record('p2','ミス')">ミス</button>
+<button onclick="record('p2','サーブ')">サーブ</button>
+<button onclick="record('p2','失点')">失点</button>
 </div>
 
 </div>
 
+</div>
+
+<button onclick="undo()">戻す</button>
+
+<!-- ===================== -->
+<!-- サーブ内訳（既存） -->
+<!-- ===================== -->
+<div class="charts">
+<h3>サーブ内訳</h3>
+<div class="chart-row">
+<div class="chart-box"><canvas id="serve-p1"></canvas></div>
+<div class="chart-box"><canvas id="serve-p2"></canvas></div>
+</div>
+</div>
+
+<!-- ===================== -->
+<!-- 得点理由（追加） -->
+<!-- ===================== -->
+<div class="charts">
+<h3>得点理由</h3>
+<div class="chart-row">
+<div class="chart-box"><canvas id="reason-p1"></canvas></div>
+<div class="chart-box"><canvas id="reason-p2"></canvas></div>
+</div>
 </div>
 
 </div>
 
 <script>
 
-let p1Score=0,p2Score=0;
-let matchLog=[];
-let currentGamePoints=[];
-let gameStartServer="p1";
-let currentServer="p1";
+let p1=0,p2=0;
+let log=[];
 
-/* ===== 完全維持：得点処理 ===== */
-function recordPoint(winner,reason){
+let serveChart={};
+let reasonChart={};
 
-currentGamePoints.push({
-winner,
-reason,
-memo:document.getElementById("freeMemo")?.value||""
-});
+function record(player,reason){
 
-if(winner==="p1")p1Score++;
-else p2Score++;
+log.push({player,reason});
 
-updateUI();
+if(player==="p1")p1++;
+else p2++;
+
+update();
 }
 
-/* ===== UI ===== */
-function updateUI(){
+function update(){
 
-document.getElementById("p1-score").innerText=p1Score;
-document.getElementById("p2-score").innerText=p2Score;
+document.getElementById("p1-score").innerText=p1;
+document.getElementById("p2-score").innerText=p2;
 
-updateCharts();
+updateServe();
+updateReason();
 }
 
-/* ===== グラフ ===== */
-let serveChart=new Chart(document.getElementById("serveChart"),{
+/* ======================
+   サーブ内訳（維持）
+====================== */
+function updateServe(){
+
+if(!serveChart.p1){
+serveChart.p1=new Chart(document.getElementById("serve-p1"),{
 type:"pie",
-data:{labels:["p1","p2"],datasets:[{data:[0,0]}]}
+data:{labels:[],datasets:[{data:[]}]}
 });
 
-let reasonChart=new Chart(document.getElementById("reasonChart"),{
-type:"bar",
-data:{labels:["攻撃","ミス"],datasets:[{data:[0,0]}]}
+serveChart.p2=new Chart(document.getElementById("serve-p2"),{
+type:"pie",
+data:{labels:[],datasets:[{data:[]}]}
+});
+}
+
+const s1={},s2={};
+
+log.forEach(p=>{
+if(p.player==="p1") s1[p.reason]=(s1[p.reason]||0)+1;
+if(p.player==="p2") s2[p.reason]=(s2[p.reason]||0)+1;
 });
 
-/* ===== 更新 ===== */
-function updateCharts(){
+serveChart.p1.data.labels=Object.keys(s1);
+serveChart.p1.data.datasets[0].data=Object.values(s1);
+serveChart.p1.update();
 
-let all=[...matchLog.flatMap(g=>g.points||[]),...currentGamePoints];
-
-let p1=all.filter(p=>p.winner==="p1").length;
-let p2=all.filter(p=>p.winner==="p2").length;
-
-serveChart.data.datasets[0].data=[p1,p2];
-serveChart.update();
-
-let atk=all.filter(p=>p.reason==="攻撃").length;
-let miss=all.filter(p=>p.reason==="ミス").length;
-
-reasonChart.data.datasets[0].data=[atk,miss];
-reasonChart.update();
+serveChart.p2.data.labels=Object.keys(s2);
+serveChart.p2.data.datasets[0].data=Object.values(s2);
+serveChart.p2.update();
 }
 
-/* ===== モード ===== */
-function showSetup(){
-document.getElementById("mode-select-overlay").style.display="none";
-document.getElementById("setup-overlay").style.display="flex";
+/* ======================
+   得点理由（追加）
+====================== */
+function updateReason(){
+
+if(!reasonChart.p1){
+reasonChart.p1=new Chart(document.getElementById("reason-p1"),{
+type:"pie",
+data:{labels:[],datasets:[{data:[]}]}
+});
+
+reasonChart.p2=new Chart(document.getElementById("reason-p2"),{
+type:"pie",
+data:{labels:[],datasets:[{data:[]}]}
+});
 }
 
-function startMatch(){
-document.getElementById("setup-overlay").style.display="none";
-document.getElementById("game-main").style.display="block";
+const r1={},r2={};
+
+log.forEach(p=>{
+if(p.player==="p1") r1[p.reason]=(r1[p.reason]||0)+1;
+if(p.player==="p2") r2[p.reason]=(r2[p.reason]||0)+1;
+});
+
+reasonChart.p1.data.labels=Object.keys(r1);
+reasonChart.p1.data.datasets[0].data=Object.values(r1);
+reasonChart.p1.update();
+
+reasonChart.p2.data.labels=Object.keys(r2);
+reasonChart.p2.data.datasets[0].data=Object.values(r2);
+reasonChart.p2.update();
 }
 
-function showHistory(){
-document.getElementById("mode-select-overlay").style.display="none";
-document.getElementById("history-overlay").style.display="flex";
+function undo(){
+log.pop();
+if(p1>0)p1--;
+else if(p2>0)p2--;
+update();
 }
 
 </script>
