@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卓球アナリティクス V11.1</title>
+    <script src="chart.umd.js"></script>
+    <style>
+        :root { --p1-color: #3498db; --p2-color: #e67e22; --accent: #2ecc71; --miss: #e74c3c; }
+        body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 5px; font-size: 14px; }
+        .container { max-width: 1300px; margin: auto; background: white; padding: 15px; border-radius: 12px; position: relative; min-height: 90vh; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        /* 履歴画面のスタイルを以前の広い形に復元 */
+        .overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 1000; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; border-radius: 12px; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        #history-list { width: 100%; max-width: 800px; margin-top: 20px; }
+        .history-item { 
+            padding: 15px; 
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #fff; 
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .history-info { display: flex; flex-direction: column; gap: 4px; }
+        .history-date { font-size: 0.85em; color: #7f8c8d; }
+        .history-name { font-weight: bold; font-size: 1.1em; }
+
+        /* セットアップ入力 */
+        .setup-input { margin: 10px; padding: 12px; width: 80%; max-width: 400px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; }
+        .mode-btn { width: 250px; padding: 15px; margin: 10px; font-size: 1.1em; font-weight: bold; cursor: pointer; border: none; border-radius: 10px; transition: 0.2s; }
+        
+        /* ゲーム画面 */
+        .realtime-analysis { background: #2c3e50; color: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; font-weight: bold; text-align: center; }
+        .main-layout { display: flex; gap: 15px; flex-wrap: wrap; }
+        .game-controls { flex: 2; min-width: 350px; }
+        .stats-sidebar { flex: 1; min-width: 300px; background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+
+        .flex { display: flex; justify-content: space-around; gap: 10px; margin-bottom: 15px; }
+        .player-area { flex: 1; padding: 10px; border-radius: 15px; border: 4px solid #ddd; text-align: center; position: relative; }
+        .serving { border-color: #f1c40f !important; background: #fffdf0; }
+        .score { font-size: 70px; font-weight: bold; margin: 0; color: #2c3e50; line-height: 1; }
+        
+        .btn-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin-top: 5px; }
+        button { padding: 8px 2px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; }
+        .btn-reason { background: #ecf0f1; color: #2c3e50; border: 1px solid #bdc3c7; }
+        .btn-p1-main { background: var(--p1-color); color: white; }
+        .btn-p2-main { background: var(--p2-color); color: white; }
+        .hidden { display: none !important; }
+        
+        /* グラフ・表 */
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
+        .chart-wrapper { text-align: center; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 8px; }
+        .chart-container { height: 160px; position: relative; }
+        .best-serve-card { margin-top: 10px; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 13px; border: 2px solid; }
+        .p1-card { color: var(--p1-color); border-color: var(--p1-color); background: #ebf5ff; }
+        .p2-card { color: var(--p2-color); border-color: var(--p2-color); background: #fff4eb; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #eee; }
+        .total-row { background: #e8f4fd; font-weight: bold; }
+
+        .advice-box { background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107; margin: 10px 0; font-size: 1.1em; width: 100%; box-sizing: border-box; }
+        textarea { width: 100%; height: 80px; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; margin-top: 5px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="mode-select-overlay" class="overlay">
+        <h1 style="margin-top:100px;">🏓 卓球アナリティクス</h1>
+        <button class="mode-btn" style="background:var(--accent); color:white;" onclick="showSetup()">新しく試合を記録する</button>
+        <button class="mode-btn" style="background:var(--p1-color); color:white;" onclick="showHistory()">過去のデータを見る</button>
+    </div>
+
+    <div id="setup-overlay" class="overlay" style="display:none;">
+        <h2>試合設定</h2>
+        <input type="date" id="match-date" class="setup-input">
+        <input type="text" id="match-name" class="setup-input" placeholder="大会名・試合名">
+        <input type="text" id="p1-input-name" class="setup-input" placeholder="自分の名前" value="自分">
+        <input type="text" id="p2-input-name" class="setup-input" placeholder="相手の名前" value="相手">
+        <p>最初のサーバーを選択</p>
+        <div class="flex">
+            <button onclick="startMatch('p1')" style="background:var(--p1-color); color:white; padding:15px 30px; font-size:1.2em;">自分</button>
+            <button onclick="startMatch('p2')" style="background:var(--p2-color); color:white; padding:15px 30px; font-size:1.2em;">相手</button>
+        </div>
+        <button onclick="location.reload()" style="margin-top:20px; background:#95a5a6; color:white; padding:10px;">キャンセル</button>
+    </div>
+
+    <div id="history-overlay" class="overlay" style="display:none;">
+        <h2 style="margin-top:20px;">過去の試合履歴</h2>
+        <div id="history-list"></div>
+        <button class="mode-btn" style="background:#95a5a6; color:white; margin-top:20px;" onclick="location.reload()">ホームに戻る</button>
+    </div>
+
+    <div id="result-overlay" class="overlay" style="display:none;">
+        <h2 id="result-title">試合詳細分析</h2>
+        <div id="advice-container" style="width:100%; max-width:800px;"></div>
+        
+        <div style="width:100%; max-width:800px;">
+            <h3>📊 マッチ統計 (各ゲーム ＆ 合計)</h3>
+            <table id="res-stats-table">
+                <thead>
+                    <tr><th>G</th><th>S得点</th><th>S得点率</th><th>R得点</th><th>R得点率</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div style="width:100%; max-width:800px; margin-top:20px;">
+            <h3>📝 振り返りメモ</h3>
+            <textarea id="match-memo-input" placeholder="この試合の反省点などを入力..."></textarea>
+            <button onclick="saveMemo()" style="background:var(--accent); color:white; padding:10px 20px; border-radius:5px; margin-top:5px;">メモを保存</button>
+        </div>
+
+        <div class="charts-grid" style="width:100%; max-width:800px;">
+            <div class="chart-wrapper"><div class="chart-container"><canvas id="res-chart-p1"></canvas></div><div id="res-p1-best" class="best-serve-card p1-card">---</div></div>
+            <div class="chart-wrapper"><div class="chart-container"><canvas id="res-chart-p2"></canvas></div><div id="res-p2-best" class="best-serve-card p2-card">---</div></div>
+        </div>
+        <button class="mode-btn" style="background:#2c3e50; color:white; margin-top:20px;" onclick="location.reload()">ホームに戻る</button>
+    </div>
+
+    <div id="game-main" style="display:none;">
+        <div class="realtime-analysis">
+            <div id="analysis-match-name">---</div>
+            <div>マッチ G: <span id="p1-games">0</span> - <span id="p2-games">0</span></div>
+            <div id="analysis-game-num">Game 1</div>
+        </div>
+        <div class="main-layout">
+            <div class="game-controls">
+                <div class="flex">
+                    <div id="p1-area" class="player-area"><h3 id="p1-disp">自分</h3><div id="p1-score" class="score">0</div>
+                        <div class="btn-group">
+                            <button class="btn-reason" onclick="recordPoint('p1','攻撃')">攻撃</button><button class="btn-reason" onclick="recordPoint('p1','攻撃ミス')">攻撃ミス</button>
+                            <button class="btn-reason" onclick="recordPoint('p1','守備')">守備</button><button class="btn-reason" onclick="recordPoint('p1','守備ミス')">守備ミス</button>
+                            <button id="p1-btn-sa" class="btn-reason" onclick="recordPoint('p1','サービスエース')">サービスエース</button>
+                            <button id="p1-btn-sm" class="btn-reason" onclick="recordPoint('p1','サーブミス')">サーブミス</button>
+                            <button id="p1-btn-ra" class="btn-reason" onclick="recordPoint('p1','レシーブエース')">レシーブエース</button>
+                            <button id="p1-btn-rm" class="btn-reason" onclick="recordPoint('p1','レシーブミス')">レシーブミス</button>
+                            <button class="btn-p1-main" style="grid-column: span 2;" onclick="recordPoint('p1', '加点')">自分の得点</button>
+                        </div>
+                    </div>
+                    <div id="p2-area" class="player-area"><h3 id="p2-disp">相手</h3><div id="p2-score" class="score">0</div>
+                        <div class="btn-group">
+                            <button class="btn-reason" onclick="recordPoint('p2','攻撃')">攻撃</button><button class="btn-reason" onclick="recordPoint('p2','攻撃ミス')">攻撃ミス</button>
+                            <button class="btn-reason" onclick="recordPoint('p2','守備')">守備</button><button class="btn-reason" onclick="recordPoint('p2','守備ミス')">守備ミス</button>
+                            <button id="p2-btn-sa" class="btn-reason" onclick="recordPoint('p2','サービスエース')">サービスエース</button>
+                            <button id="p2-btn-sm" class="btn-reason" onclick="recordPoint('p2','サーブミス')">サーブミス</button>
+                            <button id="p2-btn-ra" class="btn-reason" onclick="recordPoint('p2','レシーブエース')">レシーブエース</button>
+                            <button id="p2-btn-rm" class="btn-reason" onclick="recordPoint('p2','レシーブミス')">レシーブミス</button>
+                            <button class="btn-p2-main" style="grid-column: span 2;" onclick="recordPoint('p2', '失点')">相手の得点</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="text-align: center; background:#eee; padding:10px; border-radius:8px;">
+                    🎤 サーブ: <select id="serve-type" style="padding:8px; font-size:16px;"><option value="下">下</option><option value="上">上</option><option value="横">横</option><option value="逆横">逆横</option><option value="ナックル">ナックル</option></select>
+                    <button onclick="undo()" style="background:#95a5a6; color:white; padding:8px 12px; margin-left:10px;">1点戻す</button>
+                    <button onclick="saveMatchFinal()" style="background:#2c3e50; color:white; padding:8px 12px; margin-left:10px;">マッチ終了</button>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-wrapper"><div class="chart-container"><canvas id="chart-p1-serve"></canvas></div><div id="p1-best" class="best-serve-card p1-card">---</div></div>
+                    <div class="chart-wrapper"><div class="chart-container"><canvas id="chart-p2-serve"></canvas></div><div id="p2-best" class="best-serve-card p2-card">---</div></div>
+                </div>
+            </div>
+            <div class="stats-sidebar"><h4>📊 リアルタイム統計</h4><table id="stats-table"><thead><tr><th>G</th><th>S得点</th><th>S率</th><th>R得点</th><th>R率</th></tr></thead><tbody></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let p1Games = 0, p2Games = 0, p1Score = 0, p2Score = 0;
+    let matchLog = []; let currentGamePoints = [];
+    let gameStartServer = 'p1', currentServer = 'p1';
+    let charts = {}; let resCharts = {}; let currentEditKey = null;
+
+    function showSetup() {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        document.getElementById('setup-overlay').style.display = 'flex';
+        document.getElementById('match-date').value = new Date().toISOString().split('T')[0];
+    }
+
+    function startMatch(first) {
+        p1Games = 0; p2Games = 0; matchLog = []; p1Score = 0; p2Score = 0; currentGamePoints = [];
+        document.getElementById('setup-overlay').style.display = 'none';
+        document.getElementById('game-main').style.display = 'block';
+        document.getElementById('analysis-match-name').innerText = document.getElementById('match-name').value || "無題の試合";
+        document.getElementById('p1-disp').innerText = document.getElementById('p1-input-name').value;
+        document.getElementById('p2-disp').innerText = document.getElementById('p2-input-name').value;
+        gameStartServer = first; currentServer = first;
+        initCharts(); updateUI();
+    }
+
+    function recordPoint(winner, reason) {
+        currentGamePoints.push({ winner, reason, serveType: document.getElementById('serve-type').value, server: currentServer });
+        if(winner === 'p1') p1Score++; else p2Score++;
+        const total = p1Score + p2Score;
+        const isDeuce = (p1Score >= 10 && p2Score >= 10);
+        if(isDeuce) {
+            currentServer = (total % 2 === (gameStartServer === 'p1' ? 0 : 1)) ? 'p1' : 'p2';
+        } else {
+            currentServer = (Math.floor(total / 2) % 2 === 0) ? gameStartServer : (gameStartServer === 'p1' ? 'p2' : 'p1');
+        }
+        updateUI(); checkGameEnd();
+    }
+
+    function updateUI() {
+        document.getElementById('p1-score').innerText = p1Score; document.getElementById('p2-score').innerText = p2Score;
+        document.getElementById('p1-games').innerText = p1Games; document.getElementById('p2-games').innerText = p2Games;
+        const isP1 = (currentServer === 'p1');
+        document.getElementById('p1-area').classList.toggle('serving', isP1);
+        document.getElementById('p2-area').classList.toggle('serving', !isP1);
+        
+        document.getElementById('p1-btn-sa').classList.toggle('hidden', !isP1);
+        document.getElementById('p1-btn-sm').classList.toggle('hidden', isP1);
+        document.getElementById('p1-btn-rm').classList.toggle('hidden', !isP1);
+        document.getElementById('p1-btn-ra').classList.toggle('hidden', isP1);
+        document.getElementById('p2-btn-sa').classList.toggle('hidden', isP1);
+        document.getElementById('p2-btn-sm').classList.toggle('hidden', !isP1);
+        document.getElementById('p2-btn-rm').classList.toggle('hidden', isP1);
+        document.getElementById('p2-btn-ra').classList.toggle('hidden', !isP1);
+
+        refreshCharts(); 
+        refreshStatsTable('stats-table', [...matchLog, { gameNum: '現', points: currentGamePoints }]); 
+        analyzeBest('p1-best', 'p2-best', [...matchLog.flatMap(g => g.points), ...currentGamePoints]);
+    }
+
+    function checkGameEnd() {
+        if ((p1Score >= 11 || p2Score >= 11) && Math.abs(p1Score - p2Score) >= 2) {
+            setTimeout(() => {
+                if(confirm(`Game終了: ${p1Score}-${p2Score}. 保存しますか？`)) {
+                    matchLog.push({ gameNum: p1Games+p2Games+1, p1Score, p2Score, points: [...currentGamePoints] });
+                    if(p1Score > p2Score) p1Games++; else p2Games++;
+                    p1Score = 0; p2Score = 0; currentGamePoints = [];
+                    gameStartServer = (gameStartServer === 'p1' ? 'p2' : 'p1'); currentServer = gameStartServer;
+                    document.getElementById('analysis-game-num').innerText = `Game ${p1Games + p2Games + 1}`;
+                    updateUI();
+                }
+            }, 100);
+        }
+    }
+
+    function refreshStatsTable(tableId, logData) {
+        const tbody = document.querySelector(`#${tableId} tbody`); tbody.innerHTML = '';
+        let totalSPoints = 0, totalSTotal = 0, totalRPoints = 0, totalRTotal = 0;
+
+        logData.forEach(g => {
+            if(!g.points || !g.points.length) return;
+            const myS = g.points.filter(p => p.server === 'p1');
+            const myR = g.points.filter(p => p.server === 'p2');
+            const sPoints = myS.filter(p => p.winner === 'p1').length;
+            const rPoints = myR.filter(p => p.winner === 'p1').length;
+            
+            totalSPoints += sPoints; totalSTotal += myS.length;
+            totalRPoints += rPoints; totalRTotal += myR.length;
+
+            const sR = myS.length ? Math.round(sPoints/myS.length*100) : 0;
+            const rR = myR.length ? Math.round(rPoints/myR.length*100) : 0;
+            tbody.innerHTML += `<tr><td>${g.gameNum}</td><td>${sPoints}/${myS.length}</td><td>${sR}%</td><td>${rPoints}/${myR.length}</td><td>${rR}%</td></tr>`;
+        });
+
+        if (logData.length > 0 && totalSTotal + totalRTotal > 0) {
+            const totalSR = totalSTotal ? Math.round(totalSPoints/totalSTotal*100) : 0;
+            const totalRR = totalRTotal ? Math.round(totalRPoints/totalRTotal*100) : 0;
+            tbody.innerHTML += `<tr class="total-row"><td>合計</td><td>${totalSPoints}/${totalSTotal}</td><td>${totalSR}%</td><td>${totalRPoints}/${totalRTotal}</td><td>${totalRR}%</td></tr>`;
+        }
+    }
+
+    function initCharts() {
+        if(charts.p1S) { charts.p1S.destroy(); charts.p2S.destroy(); }
+        const cfg = (t) => ({ type: 'pie', data: { labels: [], datasets: [{ data: [], backgroundColor: ['#3498db','#e67e22','#2ecc71','#f1c40f','#9b59b6'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display:true, text:t } } } });
+        charts.p1S = new Chart(document.getElementById('chart-p1-serve'), cfg('自サーブ得点源'));
+        charts.p2S = new Chart(document.getElementById('chart-p2-serve'), cfg('相手サーブ失点源'));
+    }
+
+    function refreshCharts() {
+        const pts = [...matchLog.flatMap(g => g.points), ...currentGamePoints];
+        const upd = (c, f, targetWinner) => {
+            const counts = {}; 
+            f.filter(p => p.winner === targetWinner).forEach(p => counts[p.serveType] = (counts[p.serveType] || 0) + 1);
+            c.data.labels = Object.keys(counts); c.data.datasets[0].data = Object.values(counts); c.update();
+        };
+        upd(charts.p1S, pts.filter(p => p.server === 'p1'), 'p1');
+        upd(charts.p2S, pts.filter(p => p.server === 'p2'), 'p2');
+    }
+
+    function analyzeBest(id1, id2, data) {
+        const calc = (s, w) => {
+            const arr = data.filter(p => p.server === s && p.winner === w);
+            const counts = {}; arr.forEach(p => counts[p.serveType] = (counts[p.serveType] || 0) + 1);
+            return Object.entries(counts).sort((a,b) => b[1] - a[1])[0]?.[0] || "---";
+        };
+        document.getElementById(id1).innerText = "有効な自サーブ: " + calc('p1', 'p1');
+        document.getElementById(id2).innerText = "苦手な相手サーブ: " + calc('p2', 'p2');
+    }
+
+    function saveMatchFinal() {
+        const key = 'tt_match_' + Date.now();
+        const data = { date: document.getElementById('match-date').value, match: document.getElementById('match-name').value, log: matchLog, memo: "" };
+        localStorage.setItem(key, JSON.stringify(data));
+        showResultScreen(data, key);
+    }
+
+    function showResultScreen(data, key) {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        document.getElementById('game-main').style.display = 'none';
+        document.getElementById('result-overlay').style.display = 'flex';
+        currentEditKey = key;
+        
+        const allPoints = data.log.flatMap(g => g.points);
+        const sWin = allPoints.filter(p => p.server === 'p1' && p.winner === 'p1').length;
+        const sTotal = allPoints.filter(p => p.server === 'p1').length;
+        const sRate = sTotal ? Math.round(sWin/sTotal*100) : 0;
+        
+        let advice = (sRate > 60) ? "✅ サーブ時得点率が非常に高いです！" : (sRate < 40) ? "⚠️ サーブからの展開を改善しましょう。" : "💡 拮抗しています。レシーブ力を高めましょう。";
+        document.getElementById('advice-container').innerHTML = `<div class="advice-box">${advice}</div>`;
+        document.getElementById('match-memo-input').value = data.memo || "";
+
+        refreshStatsTable('res-stats-table', data.log);
+        analyzeBest('res-p1-best', 'res-p2-best', allPoints);
+        
+        if(resCharts.p1) { resCharts.p1.destroy(); resCharts.p2.destroy(); }
+        const cfg = (t) => ({ type: 'pie', data: { labels: [], datasets: [{ data: [], backgroundColor: ['#3498db','#e67e22','#2ecc71','#f1c40f','#9b59b6'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display:true, text:t } } } });
+        resCharts.p1 = new Chart(document.getElementById('res-chart-p1'), cfg('自サーブ得点内訳'));
+        resCharts.p2 = new Chart(document.getElementById('res-chart-p2'), cfg('相手サーブ失点内訳'));
+        
+        const upd = (c, f, targetWinner) => {
+            const counts = {}; 
+            f.filter(p => p.winner === targetWinner).forEach(p => counts[p.serveType] = (counts[p.serveType] || 0) + 1);
+            c.data.labels = Object.keys(counts); c.data.datasets[0].data = Object.values(counts); c.update();
+        };
+        upd(resCharts.p1, allPoints.filter(p => p.server === 'p1'), 'p1');
+        upd(resCharts.p2, allPoints.filter(p => p.server === 'p2'), 'p2');
+    }
+
+    // 履歴一覧の表示ロジックを以前のスタイルに戻す
+    function showHistory() {
+        document.getElementById('mode-select-overlay').style.display = 'none';
+        document.getElementById('history-overlay').style.display = 'flex';
+        const list = document.getElementById('history-list');
+        list.innerHTML = '';
+        
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('tt_match_')).sort().reverse();
+        
+        if(keys.length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:#7f8c8d;">保存された試合データがありません。</p>';
+            return;
+        }
+
+        keys.forEach(key => {
+            const d = JSON.parse(localStorage.getItem(key));
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `
+                <div class="history-info">
+                    <span class="history-date">${d.date}</span>
+                    <span class="history-name">${d.match || '無題の試合'}</span>
+                </div>
+                <button onclick="editMemo('${key}')" style="background:var(--p1-color); color:white; padding:10px 20px; font-size:14px; border-radius:6px;">確認・メモ</button>`;
+            list.appendChild(item);
+        });
+    }
+
+    function editMemo(key) {
+        const data = JSON.parse(localStorage.getItem(key));
+        showResultScreen(data, key);
+    }
+
+    function saveMemo() {
+        const data = JSON.parse(localStorage.getItem(currentEditKey));
+        data.memo = document.getElementById('match-memo-input').value;
+        localStorage.setItem(currentEditKey, JSON.stringify(data));
+        alert("メモを保存しました。");
+    }
+
+    function undo() {
+        if(currentGamePoints.length) {
+            const last = currentGamePoints.pop();
+            if(last.winner === 'p1') p1Score--; else p2Score--;
+            const total = p1Score + p2Score;
+            const isDeuce = (p1Score >= 10 && p2Score >= 10);
+            if(isDeuce) {
+                currentServer = (total % 2 === (gameStartServer === 'p1' ? 0 : 1)) ? 'p1' : 'p2';
+            } else {
+                currentServer = (Math.floor(total / 2) % 2 === 0) ? gameStartServer : (gameStartServer === 'p1' ? 'p2' : 'p1');
+            }
+            updateUI();
+        }
+    }
+</script>
+</body>
+</html>
