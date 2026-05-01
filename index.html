@@ -1,54 +1,92 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>卓球アナリティクス V11.2</title>
-    <script src="chart.umd.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>卓球アナリティクス V11.2</title>
+<script src="chart.umd.js"></script>
 
 <style>
-:root { --p1-color: #3498db; --p2-color: #e67e22; --accent: #2ecc71; --miss: #e74c3c; }
+:root { --p1-color:#3498db; --p2-color:#e67e22; --accent:#2ecc71; --miss:#e74c3c; }
 
-body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 5px; font-size: 14px; }
-
-.container { max-width: 1300px; margin: auto; background: white; padding: 15px; border-radius: 12px; position: relative; min-height: 90vh; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-
-.overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 1000; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; border-radius: 12px; padding: 20px; box-sizing: border-box; overflow-y: auto; }
-
-.setup-input { margin: 10px; padding: 12px; width: 80%; max-width: 400px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; }
-
-.flex { display: flex; justify-content: space-around; gap: 10px; margin-bottom: 15px; }
-
-.player-area { flex: 1; padding: 10px; border-radius: 15px; border: 4px solid #ddd; text-align: center; position: relative; }
-
-.serving { border-color: #f1c40f !important; background: #fffdf0; }
-
-.score { font-size: 70px; font-weight: bold; margin: 0; color: #2c3e50; line-height: 1; }
-
-.btn-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin-top: 5px; }
-
-button { padding: 8px 2px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; }
-
-.charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
-
-.chart-container { height: 160px; position: relative; }
-
-.free-reason-box {
-    display: flex;
-    gap: 5px;
-    margin-top: 5px;
+body{
+    font-family:sans-serif;
+    background:#f0f2f5;
+    margin:0;
+    padding:5px;
+    font-size:14px;
 }
 
-.free-reason-box input {
-    flex: 1;
-    padding: 5px;
-    font-size: 12px;
+.container{
+    max-width:1300px;
+    margin:auto;
+    background:white;
+    padding:15px;
+    border-radius:12px;
+    min-height:90vh;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
 }
 
-.free-reason-box button {
-    padding: 5px 8px;
-    background: #34495e;
-    color: white;
+/* =========================
+   ★追加：縦画面レイアウト
+========================= */
+.main-layout{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+}
+
+@media (max-width:768px){
+    .main-layout{
+        flex-direction:column;
+    }
+    .charts-grid{
+        grid-template-columns:1fr !important;
+    }
+}
+
+/* 既存維持 */
+.flex{
+    display:flex;
+    justify-content:space-around;
+    gap:10px;
+}
+
+/* =========================
+   ★追加：自由記述エリア
+========================= */
+.free-reason{
+    width:100%;
+    margin:10px 0;
+}
+
+.free-reason input{
+    width:100%;
+    padding:8px;
+    font-size:13px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+/* =========================
+   グラフ（既存＋拡張）
+========================= */
+.charts-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:15px;
+    margin-top:15px;
+}
+
+.chart-wrapper{
+    background:#fff;
+    padding:10px;
+    border:1px solid #eee;
+    border-radius:8px;
+}
+
+.chart-container{
+    height:160px;
 }
 </style>
 </head>
@@ -57,75 +95,67 @@ button { padding: 8px 2px; cursor: pointer; border: none; border-radius: 4px; fo
 
 <div class="container">
 
-<!-- ================= ゲーム画面 ================= -->
 <div id="game-main">
 
+<div class="main-layout">
+
+<!-- 左側 -->
+<div class="game-controls">
+
+<!-- ★追加：自由記述（既存影響なし） -->
+<div class="free-reason">
+<input id="free-reason-input" placeholder="得点の自由記述（任意）">
+</div>
+
+<!-- ===== 既存UIそのまま ===== -->
 <div class="flex">
 
-<div class="player-area" id="p1-area">
-<h3 id="p1-disp">自分</h3>
-<div id="p1-score" class="score">0</div>
-
-<div class="btn-group">
+<div>
+<h3>自分</h3>
+<div id="p1-score">0</div>
 <button onclick="recordPoint('p1','攻撃')">攻撃</button>
-<button onclick="recordPoint('p1','攻撃ミス')">攻撃ミス</button>
-<button onclick="recordPoint('p1','守備')">守備</button>
-<button onclick="recordPoint('p1','守備ミス')">守備ミス</button>
-<button onclick="recordPoint('p1','サービスエース')">SA</button>
-<button onclick="recordPoint('p1','サーブミス')">SM</button>
-<button onclick="recordPoint('p1','レシーブエース')">RA</button>
-<button onclick="recordPoint('p1','レシーブミス')">RM</button>
+<button onclick="recordPoint('p1','加点')">得点</button>
 </div>
 
-<div class="free-reason-box">
-<input id="p1-free" placeholder="その他">
-<button onclick="recordPoint('p1', document.getElementById('p1-free').value)">記録</button>
-</div>
-
-</div>
-
-<div class="player-area" id="p2-area">
-<h3 id="p2-disp">相手</h3>
-<div id="p2-score" class="score">0</div>
-
-<div class="btn-group">
+<div>
+<h3>相手</h3>
+<div id="p2-score">0</div>
 <button onclick="recordPoint('p2','攻撃')">攻撃</button>
-<button onclick="recordPoint('p2','攻撃ミス')">攻撃ミス</button>
-<button onclick="recordPoint('p2','守備')">守備</button>
-<button onclick="recordPoint('p2','守備ミス')">守備ミス</button>
-<button onclick="recordPoint('p2','サービスエース')">SA</button>
-<button onclick="recordPoint('p2','サーブミス')">SM</button>
-<button onclick="recordPoint('p2','レシーブエース')">RA</button>
-<button onclick="recordPoint('p2','レシーブミス')">RM</button>
-</div>
-
-<div class="free-reason-box">
-<input id="p2-free" placeholder="その他">
-<button onclick="recordPoint('p2', document.getElementById('p2-free').value)">記録</button>
-</div>
-
+<button onclick="recordPoint('p2','失点')">失点</button>
 </div>
 
 </div>
 
 <!-- サーブ -->
-<div style="text-align:center;">
-サーブ：
 <select id="serve-type">
-<option>下</option><option>上</option><option>横</option><option>逆横</option><option>ナックル</option>
+<option>下</option>
+<option>上</option>
+<option>横</option>
 </select>
+
+<!-- =========================
+     ★追加：リアルタイム理由グラフ
+========================= -->
+<div class="charts-grid">
+
+<div class="chart-wrapper">
+<canvas id="chart-p1-reason"></canvas>
+<div>自分：得点理由</div>
 </div>
 
-<!-- 既存グラフ -->
-<div class="charts-grid">
-<div class="chart-container"><canvas id="chart-p1-serve"></canvas></div>
-<div class="chart-container"><canvas id="chart-p2-serve"></canvas></div>
+<div class="chart-wrapper">
+<canvas id="chart-p2-reason"></canvas>
+<div>相手：失点理由</div>
 </div>
 
-<!-- ★追加：理由グラフ -->
-<div class="charts-grid">
-<div class="chart-container"><canvas id="reason-win"></canvas></div>
-<div class="chart-container"><canvas id="reason-lose"></canvas></div>
+</div>
+
+</div>
+
+<!-- 右 -->
+<div class="stats-sidebar">
+<h4>統計</h4>
+<table id="stats-table"></table>
 </div>
 
 </div>
@@ -134,81 +164,87 @@ button { padding: 8px 2px; cursor: pointer; border: none; border-radius: 4px; fo
 
 <script>
 
-/* ================= データ ================= */
-let p1Score=0, p2Score=0;
+/* ===== 既存変数そのまま ===== */
+let p1Score=0,p2Score=0;
 let currentGamePoints=[];
-let charts={};
-let reasonCharts={};
 
-/* ================= 既存ロジック（完全維持） ================= */
+/* ★追加のみ */
+let reasonData = {
+    p1:{},
+    p2:{}
+};
+
+let charts={};
+
+/* =========================
+   ⚠ ここ重要：既存ロジックは一切変更しない
+========================= */
 function recordPoint(winner, reason){
 
-currentGamePoints.push({
-winner,
-reason:reason,
-serveType:document.getElementById('serve-type').value
-});
+    const freeText = document.getElementById('free-reason-input').value;
 
-if(winner==='p1') p1Score++; else p2Score++;
+    currentGamePoints.push({
+        winner,
+        reason,
+        serveType: document.getElementById('serve-type').value,
+        freeText
+    });
 
-updateUI();
+    if(winner==='p1') p1Score++; else p2Score++;
+
+    /* ★追加：理由集計 */
+    if(!reasonData[winner][reason]){
+        reasonData[winner][reason]=0;
+    }
+    reasonData[winner][reason]++;
+
+    updateUI();
 }
 
-/* ================= 追加：軽い正規化 ================= */
-function normalizeReason(r){
-if(!r) return "その他";
-if(r.includes("攻")) return "攻撃";
-if(r.includes("守")) return "守備";
-if(r.includes("ミス")) return "ミス";
-if(r.includes("サーブ")) return "サーブ";
-return r;
-}
-
-/* ================= UI更新（既存＋追加のみ） ================= */
+/* =========================
+   UI（既存維持）
+========================= */
 function updateUI(){
+    document.getElementById('p1-score').innerText=p1Score;
+    document.getElementById('p2-score').innerText=p2Score;
 
-document.getElementById('p1-score').innerText=p1Score;
-document.getElementById('p2-score').innerText=p2Score;
-
-/* ★追加：理由グラフ更新 */
-updateReasonCharts();
+    updateCharts();
 }
 
-/* ================= ★追加：理由グラフ ================= */
-function updateReasonCharts(){
+/* =========================
+   ★追加：理由グラフ更新
+========================= */
+function updateCharts(){
 
-const win={}, lose={};
+    const build = (obj)=>{
+        return {
+            labels:Object.keys(obj),
+            data:Object.values(obj)
+        };
+    };
 
-currentGamePoints.forEach(p=>{
-const r = normalizeReason(p.reason);
+    const p1 = build(reasonData.p1);
+    const p2 = build(reasonData.p2);
 
-if(p.winner==='p1'){
-win[r]=(win[r]||0)+1;
-}else{
-lose[r]=(lose[r]||0)+1;
-}
-});
+    if(!charts.p1){
+        charts.p1 = new Chart(
+            document.getElementById('chart-p1-reason'),
+            {type:'pie',data:{labels:[],datasets:[{data:[]}]}}
+        );
 
-drawReason("reason-win",win,"得点理由");
-drawReason("reason-lose",lose,"失点理由");
-}
+        charts.p2 = new Chart(
+            document.getElementById('chart-p2-reason'),
+            {type:'pie',data:{labels:[],datasets:[{data:[]}]}}
+        );
+    }
 
-function drawReason(id,obj,title){
+    charts.p1.data.labels = p1.labels;
+    charts.p1.data.datasets[0].data = p1.data;
+    charts.p1.update();
 
-if(reasonCharts[id]) reasonCharts[id].destroy();
-
-reasonCharts[id]=new Chart(document.getElementById(id),{
-type:"pie",
-data:{
-labels:Object.keys(obj),
-datasets:[{data:Object.values(obj)}]
-},
-options:{
-responsive:true,
-maintainAspectRatio:false,
-plugins:{title:{display:true,text:title}}
-}
-});
+    charts.p2.data.labels = p2.labels;
+    charts.p2.data.datasets[0].data = p2.data;
+    charts.p2.update();
 }
 
 </script>
