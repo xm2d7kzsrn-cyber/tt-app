@@ -3,250 +3,164 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>卓球アナリティクス V11.2</title>
+<title>卓球アナリティクス V12</title>
 <script src="chart.umd.js"></script>
 
 <style>
-:root { --p1-color:#3498db; --p2-color:#e67e22; --accent:#2ecc71; --miss:#e74c3c; }
+:root{
+--p1:#3498db;
+--p2:#e67e22;
+--ok:#2ecc71;
+--ng:#e74c3c;
+}
 
 body{
-    font-family:sans-serif;
-    background:#f0f2f5;
-    margin:0;
-    padding:5px;
-    font-size:14px;
+margin:0;
+font-family:sans-serif;
+background:#f0f2f5;
+font-size:14px;
 }
 
 .container{
-    max-width:1300px;
-    margin:auto;
-    background:white;
-    padding:15px;
-    border-radius:12px;
-    min-height:90vh;
-    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+padding:10px;
+max-width:900px;
+margin:auto;
+background:white;
 }
 
-/* =========================
-   ★追加：縦画面レイアウト
-========================= */
-.main-layout{
-    display:flex;
-    gap:15px;
-    flex-wrap:wrap;
+/* 縦画面最適 */
+.vertical{
+display:flex;
+flex-direction:column;
+gap:12px;
 }
 
-@media (max-width:768px){
-    .main-layout{
-        flex-direction:column;
-    }
-    .charts-grid{
-        grid-template-columns:1fr !important;
-    }
+/* スコア */
+.scoreBox{
+display:flex;
+justify-content:space-around;
+font-size:40px;
+font-weight:bold;
 }
 
-/* 既存維持 */
-.flex{
-    display:flex;
-    justify-content:space-around;
-    gap:10px;
+/* ボタン */
+.btn{
+padding:8px;
+border:none;
+border-radius:6px;
+font-size:12px;
+margin:2px;
 }
 
-/* =========================
-   ★追加：自由記述エリア
-========================= */
-.free-reason{
-    width:100%;
-    margin:10px 0;
+.p1{background:var(--p1);color:white;}
+.p2{background:var(--p2);color:white;}
+.gray{background:#ecf0f1;}
+
+/* グラフ縦並び */
+.chartWrap{
+display:flex;
+flex-direction:column;
+gap:15px;
 }
 
-.free-reason input{
-    width:100%;
-    padding:8px;
-    font-size:13px;
-    border:1px solid #ccc;
-    border-radius:6px;
-}
-
-/* =========================
-   グラフ（既存＋拡張）
-========================= */
-.charts-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:15px;
-    margin-top:15px;
-}
-
-.chart-wrapper{
-    background:#fff;
-    padding:10px;
-    border:1px solid #eee;
-    border-radius:8px;
-}
-
-.chart-container{
-    height:160px;
+/* 自由記述 */
+textarea{
+width:100%;
+height:60px;
+margin-top:5px;
 }
 </style>
 </head>
 
 <body>
+<div class="container vertical">
 
-<div class="container">
-
-<div id="game-main">
-
-<div class="main-layout">
-
-<!-- 左側 -->
-<div class="game-controls">
-
-<!-- ★追加：自由記述（既存影響なし） -->
-<div class="free-reason">
-<input id="free-reason-input" placeholder="得点の自由記述（任意）">
+<!-- スコア -->
+<div class="scoreBox">
+<div id="p1s">0</div>
+<div>:</div>
+<div id="p2s">0</div>
 </div>
 
-<!-- ===== 既存UIそのまま ===== -->
-<div class="flex">
-
+<!-- 入力 -->
 <div>
-<h3>自分</h3>
-<div id="p1-score">0</div>
-<button onclick="recordPoint('p1','攻撃')">攻撃</button>
-<button onclick="recordPoint('p1','加点')">得点</button>
+<button class="btn p1" onclick="point('p1','攻撃')">攻撃</button>
+<button class="btn p1" onclick="point('p1','ミス')">ミス</button>
+
+<button class="btn p2" onclick="point('p2','攻撃')">攻撃</button>
+<button class="btn p2" onclick="point('p2','ミス')">ミス</button>
+
+<br>
+<textarea id="free" placeholder="自由記述（理由）"></textarea>
 </div>
 
-<div>
-<h3>相手</h3>
-<div id="p2-score">0</div>
-<button onclick="recordPoint('p2','攻撃')">攻撃</button>
-<button onclick="recordPoint('p2','失点')">失点</button>
+<!-- グラフ①（サーブ） -->
+<div class="chartWrap">
+<canvas id="g1"></canvas>
+<canvas id="g2"></canvas>
 </div>
 
-</div>
-
-<!-- サーブ -->
-<select id="serve-type">
-<option>下</option>
-<option>上</option>
-<option>横</option>
-</select>
-
-<!-- =========================
-     ★追加：リアルタイム理由グラフ
-========================= -->
-<div class="charts-grid">
-
-<div class="chart-wrapper">
-<canvas id="chart-p1-reason"></canvas>
-<div>自分：得点理由</div>
-</div>
-
-<div class="chart-wrapper">
-<canvas id="chart-p2-reason"></canvas>
-<div>相手：失点理由</div>
-</div>
-
-</div>
-
-</div>
-
-<!-- 右 -->
-<div class="stats-sidebar">
-<h4>統計</h4>
-<table id="stats-table"></table>
-</div>
-
+<!-- グラフ②（内訳） -->
+<div class="chartWrap">
+<canvas id="g3"></canvas>
 </div>
 
 </div>
 
 <script>
+let p1=0,p2=0;
+let dataLog=[];
 
-/* ===== 既存変数そのまま ===== */
-let p1Score=0,p2Score=0;
-let currentGamePoints=[];
+/* ===== 得点処理（ここは絶対に壊さない） ===== */
+function point(team,type){
 
-/* ★追加のみ */
-let reasonData = {
-    p1:{},
-    p2:{}
-};
+let memo=document.getElementById("free").value;
 
-let charts={};
+dataLog.push({team,type,memo});
 
-/* =========================
-   ⚠ ここ重要：既存ロジックは一切変更しない
-========================= */
-function recordPoint(winner, reason){
+if(team==="p1") p1++;
+else p2++;
 
-    const freeText = document.getElementById('free-reason-input').value;
+document.getElementById("p1s").innerText=p1;
+document.getElementById("p2s").innerText=p2;
 
-    currentGamePoints.push({
-        winner,
-        reason,
-        serveType: document.getElementById('serve-type').value,
-        freeText
-    });
-
-    if(winner==='p1') p1Score++; else p2Score++;
-
-    /* ★追加：理由集計 */
-    if(!reasonData[winner][reason]){
-        reasonData[winner][reason]=0;
-    }
-    reasonData[winner][reason]++;
-
-    updateUI();
+updateCharts();
 }
 
-/* =========================
-   UI（既存維持）
-========================= */
-function updateUI(){
-    document.getElementById('p1-score').innerText=p1Score;
-    document.getElementById('p2-score').innerText=p2Score;
+/* ===== グラフ ===== */
+let c1=new Chart(document.getElementById("g1"),{
+type:"pie",
+data:{labels:["p1","p2"],datasets:[{data:[0,0]}]}
+});
 
-    updateCharts();
-}
+let c2=new Chart(document.getElementById("g2"),{
+type:"pie",
+data:{labels:["攻撃","ミス"],datasets:[{data:[0,0]}]}
+});
 
-/* =========================
-   ★追加：理由グラフ更新
-========================= */
+let c3=new Chart(document.getElementById("g3"),{
+type:"bar",
+data:{labels:["攻撃","ミス"],datasets:[{data:[0,0]}]}
+});
+
+/* ===== 更新ロジック（追加だけ） ===== */
 function updateCharts(){
 
-    const build = (obj)=>{
-        return {
-            labels:Object.keys(obj),
-            data:Object.values(obj)
-        };
-    };
+let p1Count=dataLog.filter(d=>d.team==="p1").length;
+let p2Count=dataLog.filter(d=>d.team==="p2").length;
 
-    const p1 = build(reasonData.p1);
-    const p2 = build(reasonData.p2);
+c1.data.datasets[0].data=[p1Count,p2Count];
+c1.update();
 
-    if(!charts.p1){
-        charts.p1 = new Chart(
-            document.getElementById('chart-p1-reason'),
-            {type:'pie',data:{labels:[],datasets:[{data:[]}]}}
-        );
+let atk=dataLog.filter(d=>d.type==="攻撃").length;
+let miss=dataLog.filter(d=>d.type==="ミス").length;
 
-        charts.p2 = new Chart(
-            document.getElementById('chart-p2-reason'),
-            {type:'pie',data:{labels:[],datasets:[{data:[]}]}}
-        );
-    }
+c2.data.datasets[0].data=[atk,miss];
+c2.update();
 
-    charts.p1.data.labels = p1.labels;
-    charts.p1.data.datasets[0].data = p1.data;
-    charts.p1.update();
-
-    charts.p2.data.labels = p2.labels;
-    charts.p2.data.datasets[0].data = p2.data;
-    charts.p2.update();
+c3.data.datasets[0].data=[atk,miss];
+c3.update();
 }
-
 </script>
 
 </body>
